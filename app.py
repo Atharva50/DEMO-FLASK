@@ -1,68 +1,32 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import os
-from datetime import datetime
-
-app = Flask(__name__)
-CORS(app)
-
-# Default API key (Render can override this via Environment variable)
-API_KEY = os.environ.get('API_KEY', 'demo-key-12345')
-
-@app.route('/')
-def home():
-    """Health info and available endpoints"""
-    return jsonify({
-        "status": "online",
-        "message": "Flask API for Oracle APEX Integration",
-        "endpoints": ["/predict", "/health"]
-    }), 200
-
-
-@app.route('/health')
-def health():
-    """Simple health check endpoint"""
-    return jsonify({"status": "healthy"}), 200
-
-
 @app.route('/predict', methods=['POST'])
 def predict():
-    """Main API for tax + total calculation"""
+    api_key = request.headers.get('X-API-KEY')
+    if api_key != API_KEY:
+        return jsonify({"error": "Invalid API Key"}), 401
+
     try:
-        # ✅ 1. Validate API key
-        api_key = request.headers.get('X-API-KEY')
-        if api_key != API_KEY:
-            return jsonify({"error": "Invalid API Key"}), 401
+        # ✅ Force JSON parse to avoid NoneType issues
+        data = request.get_json(force=True, silent=True)
 
-        # ✅ 2. Parse incoming JSON
-        # Using force=True ensures data parses even if headers are missing
-        data = request.get_json(force=True)
+        # ✅ Validation
+        if not data or 'amount' not in data or 'tax' not in data:
+            return jsonify({"error": "Missing 'amount' or 'tax' field"}), 400
 
-        if not data or 'amount' not in data:
-            return jsonify({"error": "Missing 'amount' field"}), 400
-
-        # ✅ 3. Business logic
         amount = float(data['amount'])
-        tax = round(amount * 0.18, 2)
+        tax = float(data['tax'])
         total = round(amount + tax, 2)
 
-        # ✅ 4. Response
         response = {
             "amount": amount,
             "tax": tax,
             "total": total,
             "message": "Success",
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            "timestamp": "2025-11-12"
         }
 
         return jsonify(response), 200
 
     except ValueError:
-        return jsonify({"error": "Invalid amount format"}), 400
+        return jsonify({"error": "Invalid number format"}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
